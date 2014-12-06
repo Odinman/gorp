@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -2020,12 +2021,26 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 					return err
 				}
 				k := f.Kind()
-				if (k == reflect.Int) || (k == reflect.Int16) || (k == reflect.Int32) || (k == reflect.Int64) {
+				if k == reflect.Ptr {
+					switch f.Type().String() {
+					case "*string":
+						ts := strconv.Itoa(int(id))
+						f.Set(reflect.ValueOf(&ts))
+					case "*int64":
+						f.Set(reflect.ValueOf(&id))
+					case "*int":
+						ti := int(id)
+						f.Set(reflect.ValueOf(&ti))
+					default:
+						return fmt.Errorf("gorp: Cannot set autoincrement value on the field. SQL=%s  autoIncrIdx=%d autoIncrFieldName=%s, id=%d, k:%v", bi.query, bi.autoIncrIdx, bi.autoIncrFieldName, id, f)
+					}
+					//f.Set(reflect.ValueOf(&id))
+				} else if (k == reflect.Int) || (k == reflect.Int16) || (k == reflect.Int32) || (k == reflect.Int64) {
 					f.SetInt(id)
 				} else if (k == reflect.Uint) || (k == reflect.Uint16) || (k == reflect.Uint32) || (k == reflect.Uint64) {
 					f.SetUint(uint64(id))
 				} else {
-					return fmt.Errorf("gorp: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d autoIncrFieldName=%s", bi.query, bi.autoIncrIdx, bi.autoIncrFieldName)
+					return fmt.Errorf("gorp: Cannot set autoincrement value on non-Int field. SQL=%s  autoIncrIdx=%d autoIncrFieldName=%s, id=%d, k:%v", bi.query, bi.autoIncrIdx, bi.autoIncrFieldName, id, f)
 				}
 			case TargetedAutoIncrInserter:
 				err := inserter.InsertAutoIncrToTarget(exec, bi.query, f.Addr().Interface(), bi.args...)
