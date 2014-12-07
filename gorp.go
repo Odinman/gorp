@@ -17,6 +17,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"github.com/Odinman/ogo/utils"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -294,6 +295,7 @@ func (plan bindPlan) createBindInstance(elem reflect.Value, conv TypeConverter) 
 
 	for i := 0; i < len(plan.argFields); i++ {
 		k := plan.argFields[i]
+		//fmt.Printf("k: %s\n", k)
 		if k == versFieldConst {
 			newVer := bi.existingVersion + 1
 			bi.args = append(bi.args, newVer)
@@ -398,65 +400,95 @@ func (t *TableMap) bindInsert(elem reflect.Value) (bindInstance, error) {
 }
 
 func (t *TableMap) bindUpdate(elem reflect.Value) (bindInstance, error) {
-	plan := t.updatePlan
-	if plan.query == "" {
+	plan := bindPlan{}
+	//plan := t.updatePlan
+	//if plan.query == "" {
 
-		s := bytes.Buffer{}
-		s.WriteString(fmt.Sprintf("update %s set ", t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName)))
-		x := 0
+	s := bytes.Buffer{}
+	s.WriteString(fmt.Sprintf("UPDATE %s SET ", t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName)))
+	x := 0
 
-		for y := range t.Columns {
-			col := t.Columns[y]
-			if !col.isAutoIncr && !col.Transient {
-				if x > 0 {
-					s.WriteString(", ")
-				}
-				if strings.Index(col.StructField.Tag.Get("db"), "update_now") != -1 {
-					s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
-					s.WriteString("=")
-					s.WriteString(t.dbmap.Dialect.BindNow())
+	for y := range t.Columns {
+		col := t.Columns[y]
+		if !col.isAutoIncr && !col.Transient {
+			fv := elem.FieldByName(col.fieldName)
+			if !fv.IsValid() || utils.IsEmptyValue(fv) {
+				fmt.Printf("%s empty, skip\n", col.fieldName)
+				continue
+			}
+			if x > 0 {
+				s.WriteString(", ")
+			}
+			if strings.Index(col.StructField.Tag.Get("db"), "update_now") != -1 {
+				s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
+				s.WriteString("=")
+				s.WriteString(t.dbmap.Dialect.BindNow())
+			} else {
+				s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
+				s.WriteString("=")
+				s.WriteString(t.dbmap.Dialect.BindVar(x))
+
+				if col == t.version {
+					plan.versField = col.fieldName
+					plan.argFields = append(plan.argFields, versFieldConst)
 				} else {
-					s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
-					s.WriteString("=")
-					s.WriteString(t.dbmap.Dialect.BindVar(x))
-
-					if col == t.version {
-						plan.versField = col.fieldName
-						plan.argFields = append(plan.argFields, versFieldConst)
-					} else {
-						plan.argFields = append(plan.argFields, col.fieldName)
-					}
+					plan.argFields = append(plan.argFields, col.fieldName)
 				}
-				x++
 			}
-		}
-
-		s.WriteString(" where ")
-		for y := range t.keys {
-			col := t.keys[y]
-			if y > 0 {
-				s.WriteString(" and ")
-			}
-			s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
-			s.WriteString("=")
-			s.WriteString(t.dbmap.Dialect.BindVar(x))
-
-			plan.argFields = append(plan.argFields, col.fieldName)
-			plan.keyFields = append(plan.keyFields, col.fieldName)
 			x++
 		}
-		if plan.versField != "" {
-			s.WriteString(" and ")
-			s.WriteString(t.dbmap.Dialect.QuoteField(t.version.ColumnName))
-			s.WriteString("=")
-			s.WriteString(t.dbmap.Dialect.BindVar(x))
-			plan.argFields = append(plan.argFields, plan.versField)
-		}
-		s.WriteString(t.dbmap.Dialect.QuerySuffix())
-
-		plan.query = s.String()
-		t.updatePlan = plan
 	}
+	//fmt.Printf("%v\n", elem)
+	//if cols := utils.ReadStructColumns(elem, true); cols != nil {
+	//	for _, col := range cols {
+	//		fmt.Printf("tag:%s, name: %s\n", col.Tag, col.Name)
+	//		fv := fieldByIndex(elem, col.Index)
+	//		if fv.IsValid() && !utils.IsEmptyValue(fv) && !col.TagOptions.Contains("pk") { //有值,并且不是pk
+	//			if x > 0 {
+	//				s.WriteString(", ")
+	//			}
+	//			if strings.Index(string(col.TagOptions), "update_now") != -1 {
+	//				s.WriteString(t.dbmap.Dialect.QuoteField(col.Tag))
+	//				s.WriteString("=")
+	//				s.WriteString(t.dbmap.Dialect.BindNow())
+	//			} else {
+	//				s.WriteString(t.dbmap.Dialect.QuoteField(col.Tag))
+	//				s.WriteString("=")
+	//				s.WriteString(t.dbmap.Dialect.BindVar(x))
+
+	//				plan.argFields = append(plan.argFields, col.Name)
+	//			}
+	//			x++
+	//		}
+	//	}
+	//}
+
+	s.WriteString(" WHERE ")
+	for y := range t.keys {
+		col := t.keys[y]
+		if y > 0 {
+			s.WriteString(" AND ")
+		}
+		s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
+		s.WriteString("=")
+		s.WriteString(t.dbmap.Dialect.BindVar(x))
+
+		plan.argFields = append(plan.argFields, col.fieldName)
+		plan.keyFields = append(plan.keyFields, col.fieldName)
+		x++
+	}
+	if plan.versField != "" {
+		s.WriteString(" AND ")
+		s.WriteString(t.dbmap.Dialect.QuoteField(t.version.ColumnName))
+		s.WriteString("=")
+		s.WriteString(t.dbmap.Dialect.BindVar(x))
+		plan.argFields = append(plan.argFields, plan.versField)
+	}
+	s.WriteString(t.dbmap.Dialect.QuerySuffix())
+
+	plan.query = s.String()
+	t.updatePlan = plan
+	//}
 
 	return plan.createBindInstance(elem, t.dbmap.TypeConverter)
 }
@@ -2117,3 +2149,21 @@ type HasPreUpdate interface {
 type HasPreInsert interface {
 	PreInsert(SqlExecutor) error
 }
+
+/* {{{ func fieldByIndex(v reflect.Value, index []int) reflect.Value
+ * 通过索引返回field
+ */
+func fieldByIndex(v reflect.Value, index []int) reflect.Value {
+	for _, i := range index {
+		if v.Kind() == reflect.Ptr {
+			if v.IsNil() {
+				return reflect.Value{}
+			}
+			v = v.Elem()
+		}
+		v = v.Field(i)
+	}
+	return v
+}
+
+/* }}} */
