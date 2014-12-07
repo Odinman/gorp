@@ -118,7 +118,8 @@ func (b *Builder) Table(name string) *Builder {
 }
 
 func (b *Builder) QuotedTableName() string {
-	return b.search.TableName
+	//return b.search.TableName
+	return b.Quote(b.search.TableName)
 }
 
 func (b *Builder) Quote(str string) string {
