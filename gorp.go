@@ -413,7 +413,7 @@ func (t *TableMap) bindUpdate(elem reflect.Value) (bindInstance, error) {
 		if !col.isAutoIncr && !col.Transient {
 			fv := elem.FieldByName(col.fieldName)
 			if !fv.IsValid() || utils.IsEmptyValue(fv) {
-				fmt.Printf("%s empty, skip\n", col.fieldName)
+				//fmt.Printf("%s empty, skip\n", col.fieldName)
 				continue
 			}
 			if x > 0 {
