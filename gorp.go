@@ -305,6 +305,7 @@ func (plan bindPlan) createBindInstance(elem reflect.Value, conv TypeConverter) 
 		} else {
 			val := elem.FieldByName(k).Interface()
 			if conv != nil {
+				//fmt.Printf("val: %v\n", val)
 				val, err = conv.ToDb(val)
 				if err != nil {
 					return bindInstance{}, err
@@ -346,12 +347,18 @@ func (t *TableMap) bindInsert(elem reflect.Value) (bindInstance, error) {
 
 		s := bytes.Buffer{}
 		s2 := bytes.Buffer{}
-		s.WriteString(fmt.Sprintf("insert into %s (", t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName)))
+		s.WriteString(fmt.Sprintf("INSERT INTO %s (", t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName)))
 
 		x := 0
 		first := true
 		for y := range t.Columns {
 			col := t.Columns[y]
+			fv := elem.FieldByName(col.fieldName)
+			if !col.isAutoIncr && strings.Index(col.StructField.Tag.Get("db"), "add_now") == -1 && (!fv.IsValid() || utils.IsEmptyValue(fv)) {
+				//fmt.Printf("%s empty, skip\n", col.fieldName)
+				//不是pk, 不是自动加时间,但是为空
+				continue
+			}
 			if !(col.isAutoIncr && t.dbmap.Dialect.AutoIncrBindValue() == "") {
 				if !col.Transient {
 					if !first {
@@ -384,7 +391,7 @@ func (t *TableMap) bindInsert(elem reflect.Value) (bindInstance, error) {
 				plan.autoIncrFieldName = col.fieldName
 			}
 		}
-		s.WriteString(") values (")
+		s.WriteString(") VALUES (")
 		s.WriteString(s2.String())
 		s.WriteString(")")
 		if plan.autoIncrIdx > -1 {
