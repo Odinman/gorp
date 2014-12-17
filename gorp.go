@@ -1240,6 +1240,16 @@ func argsString(args ...interface{}) string {
 		switch v.(type) {
 		case string:
 			v = fmt.Sprintf("%q", v)
+		case *string:
+			v = "*string"
+		case *[]byte:
+			v = "*[]byte"
+		case []byte:
+			v = "[]byte"
+		case *int:
+			v = "*int"
+		case *int64:
+			v = "*int64"
 		default:
 			v = fmt.Sprintf("%v", v)
 		}
