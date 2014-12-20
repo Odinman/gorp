@@ -341,67 +341,68 @@ type bindInstance struct {
 }
 
 func (t *TableMap) bindInsert(elem reflect.Value) (bindInstance, error) {
-	plan := t.insertPlan
-	if plan.query == "" {
-		plan.autoIncrIdx = -1
+	plan := bindPlan{}
+	//plan := t.insertPlan
+	//if plan.query == "" {
+	plan.autoIncrIdx = -1
 
-		s := bytes.Buffer{}
-		s2 := bytes.Buffer{}
-		s.WriteString(fmt.Sprintf("INSERT INTO %s (", t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName)))
+	s := bytes.Buffer{}
+	s2 := bytes.Buffer{}
+	s.WriteString(fmt.Sprintf("INSERT INTO %s (", t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName)))
 
-		x := 0
-		first := true
-		for y := range t.Columns {
-			col := t.Columns[y]
-			fv := elem.FieldByName(col.fieldName)
-			if !col.isAutoIncr && strings.Index(col.StructField.Tag.Get("db"), "add_now") == -1 && (!fv.IsValid() || utils.IsEmptyValue(fv)) {
-				//fmt.Printf("%s empty, skip\n", col.fieldName)
-				//不是pk, 不是自动加时间,但是为空
-				continue
-			}
-			if !(col.isAutoIncr && t.dbmap.Dialect.AutoIncrBindValue() == "") {
-				if !col.Transient {
-					if !first {
-						s.WriteString(",")
-						s2.WriteString(",")
-					}
-					s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
-
-					if col.isAutoIncr {
-						s2.WriteString(t.dbmap.Dialect.AutoIncrBindValue())
-						plan.autoIncrIdx = y
-						plan.autoIncrFieldName = col.fieldName
-					} else if strings.Index(col.StructField.Tag.Get("db"), "add_now") != -1 {
-						s2.WriteString(t.dbmap.Dialect.BindNow())
-					} else {
-						s2.WriteString(t.dbmap.Dialect.BindVar(x))
-						if col == t.version {
-							plan.versField = col.fieldName
-							plan.argFields = append(plan.argFields, versFieldConst)
-						} else {
-							plan.argFields = append(plan.argFields, col.fieldName)
-						}
-
-						x++
-					}
-					first = false
+	x := 0
+	first := true
+	for y := range t.Columns {
+		col := t.Columns[y]
+		fv := elem.FieldByName(col.fieldName)
+		if !col.isAutoIncr && strings.Index(col.StructField.Tag.Get("db"), "add_now") == -1 && (!fv.IsValid() || utils.IsEmptyValue(fv)) {
+			//fmt.Printf("%s empty, skip\n", col.fieldName)
+			//不是pk, 不是自动加时间,但是为空
+			continue
+		}
+		if !(col.isAutoIncr && t.dbmap.Dialect.AutoIncrBindValue() == "") {
+			if !col.Transient {
+				if !first {
+					s.WriteString(",")
+					s2.WriteString(",")
 				}
-			} else {
-				plan.autoIncrIdx = y
-				plan.autoIncrFieldName = col.fieldName
-			}
-		}
-		s.WriteString(") VALUES (")
-		s.WriteString(s2.String())
-		s.WriteString(")")
-		if plan.autoIncrIdx > -1 {
-			s.WriteString(t.dbmap.Dialect.AutoIncrInsertSuffix(t.Columns[plan.autoIncrIdx]))
-		}
-		s.WriteString(t.dbmap.Dialect.QuerySuffix())
+				s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
 
-		plan.query = s.String()
-		t.insertPlan = plan
+				if col.isAutoIncr {
+					s2.WriteString(t.dbmap.Dialect.AutoIncrBindValue())
+					plan.autoIncrIdx = y
+					plan.autoIncrFieldName = col.fieldName
+				} else if strings.Index(col.StructField.Tag.Get("db"), "add_now") != -1 {
+					s2.WriteString(t.dbmap.Dialect.BindNow())
+				} else {
+					s2.WriteString(t.dbmap.Dialect.BindVar(x))
+					if col == t.version {
+						plan.versField = col.fieldName
+						plan.argFields = append(plan.argFields, versFieldConst)
+					} else {
+						plan.argFields = append(plan.argFields, col.fieldName)
+					}
+
+					x++
+				}
+				first = false
+			}
+		} else {
+			plan.autoIncrIdx = y
+			plan.autoIncrFieldName = col.fieldName
+		}
 	}
+	s.WriteString(") VALUES (")
+	s.WriteString(s2.String())
+	s.WriteString(")")
+	if plan.autoIncrIdx > -1 {
+		s.WriteString(t.dbmap.Dialect.AutoIncrInsertSuffix(t.Columns[plan.autoIncrIdx]))
+	}
+	s.WriteString(t.dbmap.Dialect.QuerySuffix())
+
+	plan.query = s.String()
+	t.insertPlan = plan
+	//}
 
 	return plan.createBindInstance(elem, t.dbmap.TypeConverter)
 }
@@ -501,88 +502,90 @@ func (t *TableMap) bindUpdate(elem reflect.Value) (bindInstance, error) {
 }
 
 func (t *TableMap) bindDelete(elem reflect.Value) (bindInstance, error) {
-	plan := t.deletePlan
-	if plan.query == "" {
+	//plan := t.deletePlan
+	plan := bindPlan{}
+	//if plan.query == "" {
 
-		s := bytes.Buffer{}
-		s.WriteString(fmt.Sprintf("delete from %s", t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName)))
+	s := bytes.Buffer{}
+	s.WriteString(fmt.Sprintf("delete from %s", t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName)))
 
-		for y := range t.Columns {
-			col := t.Columns[y]
-			if !col.Transient {
-				if col == t.version {
-					plan.versField = col.fieldName
-				}
+	for y := range t.Columns {
+		col := t.Columns[y]
+		if !col.Transient {
+			if col == t.version {
+				plan.versField = col.fieldName
 			}
 		}
-
-		s.WriteString(" where ")
-		for x := range t.keys {
-			k := t.keys[x]
-			if x > 0 {
-				s.WriteString(" and ")
-			}
-			s.WriteString(t.dbmap.Dialect.QuoteField(k.ColumnName))
-			s.WriteString("=")
-			s.WriteString(t.dbmap.Dialect.BindVar(x))
-
-			plan.keyFields = append(plan.keyFields, k.fieldName)
-			plan.argFields = append(plan.argFields, k.fieldName)
-		}
-		if plan.versField != "" {
-			s.WriteString(" and ")
-			s.WriteString(t.dbmap.Dialect.QuoteField(t.version.ColumnName))
-			s.WriteString("=")
-			s.WriteString(t.dbmap.Dialect.BindVar(len(plan.argFields)))
-
-			plan.argFields = append(plan.argFields, plan.versField)
-		}
-		s.WriteString(t.dbmap.Dialect.QuerySuffix())
-
-		plan.query = s.String()
-		t.deletePlan = plan
 	}
+
+	s.WriteString(" where ")
+	for x := range t.keys {
+		k := t.keys[x]
+		if x > 0 {
+			s.WriteString(" and ")
+		}
+		s.WriteString(t.dbmap.Dialect.QuoteField(k.ColumnName))
+		s.WriteString("=")
+		s.WriteString(t.dbmap.Dialect.BindVar(x))
+
+		plan.keyFields = append(plan.keyFields, k.fieldName)
+		plan.argFields = append(plan.argFields, k.fieldName)
+	}
+	if plan.versField != "" {
+		s.WriteString(" and ")
+		s.WriteString(t.dbmap.Dialect.QuoteField(t.version.ColumnName))
+		s.WriteString("=")
+		s.WriteString(t.dbmap.Dialect.BindVar(len(plan.argFields)))
+
+		plan.argFields = append(plan.argFields, plan.versField)
+	}
+	s.WriteString(t.dbmap.Dialect.QuerySuffix())
+
+	plan.query = s.String()
+	t.deletePlan = plan
+	//}
 
 	return plan.createBindInstance(elem, t.dbmap.TypeConverter)
 }
 
 func (t *TableMap) bindGet() bindPlan {
-	plan := t.getPlan
-	if plan.query == "" {
+	plan := bindPlan{}
+	//plan := t.getPlan
+	//if plan.query == "" {
 
-		s := bytes.Buffer{}
-		s.WriteString("select ")
+	s := bytes.Buffer{}
+	s.WriteString("select ")
 
-		x := 0
-		for _, col := range t.Columns {
-			if !col.Transient {
-				if x > 0 {
-					s.WriteString(",")
-				}
-				s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
-				plan.argFields = append(plan.argFields, col.fieldName)
-				x++
-			}
-		}
-		s.WriteString(" from ")
-		s.WriteString(t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName))
-		s.WriteString(" where ")
-		for x := range t.keys {
-			col := t.keys[x]
+	x := 0
+	for _, col := range t.Columns {
+		if !col.Transient {
 			if x > 0 {
-				s.WriteString(" and ")
+				s.WriteString(",")
 			}
 			s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
-			s.WriteString("=")
-			s.WriteString(t.dbmap.Dialect.BindVar(x))
-
-			plan.keyFields = append(plan.keyFields, col.fieldName)
+			plan.argFields = append(plan.argFields, col.fieldName)
+			x++
 		}
-		s.WriteString(t.dbmap.Dialect.QuerySuffix())
-
-		plan.query = s.String()
-		t.getPlan = plan
 	}
+	s.WriteString(" from ")
+	s.WriteString(t.dbmap.Dialect.QuotedTableForQuery(t.SchemaName, t.TableName))
+	s.WriteString(" where ")
+	for x := range t.keys {
+		col := t.keys[x]
+		if x > 0 {
+			s.WriteString(" and ")
+		}
+		s.WriteString(t.dbmap.Dialect.QuoteField(col.ColumnName))
+		s.WriteString("=")
+		s.WriteString(t.dbmap.Dialect.BindVar(x))
+
+		plan.keyFields = append(plan.keyFields, col.fieldName)
+	}
+	s.WriteString(t.dbmap.Dialect.QuerySuffix())
+
+	plan.query = s.String()
+	t.getPlan = plan
+	//}
 
 	return plan
 }
@@ -2056,6 +2059,7 @@ func insert(m *DbMap, exec SqlExecutor, list ...interface{}) error {
 			}
 		}
 
+		//fmt.Printf("insert: %s\n", elem)
 		bi, err := table.bindInsert(elem)
 		if err != nil {
 			return err
