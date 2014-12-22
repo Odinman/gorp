@@ -123,7 +123,7 @@ func (b *Builder) QuotedTableName() string {
 }
 
 func (b *Builder) Quote(str string) string {
-	return fmt.Sprintf("`%s`", str)
+	return fmt.Sprintf("`%s` T", str)
 }
 
 func (b *Builder) CombinedConditionSql() string {

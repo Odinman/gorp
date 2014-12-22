@@ -1,6 +1,9 @@
 package gorp
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
 
 type search struct {
 	builder         *Builder
@@ -122,6 +125,14 @@ func (s *search) getInterfaceAsSql(value interface{}) (str string) {
 			str = ""
 		} else {
 			str = strconv.Itoa(v)
+		}
+	case []string: // added by odin 2014-12-22 13:57:40
+		for _, v := range v {
+			if str == "" {
+				str += fmt.Sprintf("T.`%s`", v)
+			} else {
+				str += fmt.Sprintf(", T.`%s`", v)
+			}
 		}
 	default:
 		s.builder.Err(InvalidSql)
