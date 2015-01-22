@@ -82,8 +82,9 @@ func (s *search) offset(value interface{}) *search {
 	return s
 }
 
-func (s *search) group(query string) *search {
-	s.Group = s.getInterfaceAsSql(query)
+//func (s *search) group(query string) *search {
+func (s *search) group(value interface{}) *search {
+	s.Group = s.getInterfaceAsSql(value)
 	return s
 }
 

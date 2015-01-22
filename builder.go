@@ -70,8 +70,9 @@ func (b *Builder) Select(value interface{}) *Builder {
 	return b.search.selects(value).builder
 }
 
-func (b *Builder) Group(query string) *Builder {
-	return b.search.group(query).builder
+//func (b *Builder) Group(query string) *Builder {
+func (b *Builder) Group(value interface{}) *Builder {
+	return b.search.group(value).builder
 }
 
 func (b *Builder) Having(query string, values ...interface{}) *Builder {

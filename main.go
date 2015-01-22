@@ -1,10 +1,11 @@
 package gorp
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"regexp"
-	"strings"
+	//"strings"
 	"sync"
 )
 
@@ -87,10 +88,24 @@ func GetTable(name string) (*TableMap, bool) {
 var UNDERSCORE_PATTERN_1 = regexp.MustCompile("([A-Z]+)([A-Z][a-z])")
 var UNDERSCORE_PATTERN_2 = regexp.MustCompile("([a-z\\d])([A-Z])")
 
-func underscore(camelCaseWord string) string {
-	underscoreWord := UNDERSCORE_PATTERN_1.ReplaceAllString(camelCaseWord, "${1}_${2}")
-	underscoreWord = UNDERSCORE_PATTERN_2.ReplaceAllString(underscoreWord, "${1}_${2}")
-	underscoreWord = strings.Replace(underscoreWord, "-", "_", 0)
-	underscoreWord = strings.ToLower(underscoreWord)
-	return underscoreWord
+//func underscore(camelCaseWord string) string {
+//	underscoreWord := UNDERSCORE_PATTERN_1.ReplaceAllString(camelCaseWord, "${1}_${2}")
+//	underscoreWord = UNDERSCORE_PATTERN_2.ReplaceAllString(underscoreWord, "${1}_${2}")
+//	underscoreWord = strings.Replace(underscoreWord, "-", "_", 0)
+//	underscoreWord = strings.ToLower(underscoreWord)
+//	return underscoreWord
+//}
+func underscore(str string) string {
+	buf := bytes.Buffer{}
+	for i, s := range str {
+		if s <= 'Z' && s >= 'A' {
+			if i > 0 {
+				buf.WriteString("_")
+			}
+			buf.WriteString(string(s + 32))
+		} else {
+			buf.WriteString(string(s))
+		}
+	}
+	return buf.String()
 }
