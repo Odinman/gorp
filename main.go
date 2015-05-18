@@ -17,7 +17,8 @@ var (
 
 func Open(alias, driver, datasource string, param ...int) error {
 	if _, ok := dbcache[alias]; ok {
-		panic(fmt.Errorf("DbMap with alias `%s` already opened!"))
+		//panic(fmt.Errorf("DbMap with alias `%s` already opened!"))
+		return fmt.Errorf("DbMap with alias `%s` already opened!")
 	}
 	db, err := sql.Open(driver, datasource)
 	if err != nil {
@@ -43,16 +44,15 @@ func Open(alias, driver, datasource string, param ...int) error {
 
 func Using(alias string) *DbMap {
 	m.Lock()
+	defer m.Unlock()
 	db, ok := dbcache[alias]
 	if !ok {
 		panic(fmt.Errorf("cannot find DbMap with alias `%s`", alias))
 	}
 	if dbMap.Db != db {
-		m.Unlock()
 		return &DbMap{Db: db, Dialect: dbMap.Dialect, tables: dbMap.tables, logger: dbMap.logger, TypeConverter: dbMap.TypeConverter, logPrefix: dbMap.logPrefix}
 	}
 	dbMap.Db = db
-	m.Unlock()
 	return dbMap
 }
 
