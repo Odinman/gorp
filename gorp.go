@@ -17,12 +17,13 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"github.com/Odinman/ogo/utils"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"wgo/utils"
 )
 
 // Oracle String (empty string is null)
@@ -356,7 +357,6 @@ func (t *TableMap) bindInsert(elem reflect.Value) (bindInstance, error) {
 		col := t.Columns[y]
 		fv := elem.FieldByName(col.fieldName)
 		if !col.isAutoIncr && strings.Index(col.StructField.Tag.Get("db"), "add_now") == -1 && (!fv.IsValid() || utils.IsEmptyValue(fv)) {
-			//fmt.Printf("%s empty, skip\n", col.fieldName)
 			//不是pk, 不是自动加时间,但是为空
 			continue
 		}
@@ -372,7 +372,8 @@ func (t *TableMap) bindInsert(elem reflect.Value) (bindInstance, error) {
 					s2.WriteString(t.dbmap.Dialect.AutoIncrBindValue())
 					plan.autoIncrIdx = y
 					plan.autoIncrFieldName = col.fieldName
-				} else if strings.Index(col.StructField.Tag.Get("db"), "add_now") != -1 {
+				} else if strings.Index(col.StructField.Tag.Get("db"), "add_now") != -1 && (!fv.IsValid() || utils.IsEmptyValue(fv)) {
+					// add_now忽略有值的字段（更灵活）
 					s2.WriteString(t.dbmap.Dialect.BindNow())
 				} else {
 					s2.WriteString(t.dbmap.Dialect.BindVar(x))
@@ -772,9 +773,14 @@ func (m *DbMap) readStructColumns(t reflect.Type) (cols []*ColumnMap, version *C
 	n := t.NumField()
 	for i := 0; i < n; i++ {
 		f := t.Field(i)
-		if f.Anonymous && f.Type.Kind() == reflect.Struct {
+		if f.Anonymous && (f.Type.Kind() == reflect.Struct || f.Type.Kind() == reflect.Ptr && f.Type.Elem().Kind() == reflect.Struct) {
 			// Recursively add nested fields in embedded structs.
-			subcols, subversion := m.readStructColumns(f.Type)
+			ft := f.Type
+			if f.Type.Kind() == reflect.Ptr && f.Type.Elem().Kind() == reflect.Struct {
+				ft = f.Type.Elem()
+			}
+			// subcols, subversion := m.readStructColumns(f.Type)
+			subcols, subversion := m.readStructColumns(ft)
 			// Don't append nested fields that have the same field
 			// name as an already-mapped field.
 			for _, subcol := range subcols {
@@ -1188,6 +1194,7 @@ func (m *DbMap) Prepare(query string) (*sql.Stmt, error) {
 func tableOrNil(m *DbMap, t reflect.Type) *TableMap {
 	for i := range m.tables {
 		table := m.tables[i]
+		//fmt.Printf("t: %s, gotype: %s", t, table.Gotype)
 		if table.Gotype == t {
 			return table
 		}
@@ -1205,6 +1212,7 @@ func (m *DbMap) tableForPointer(ptr interface{}, checkPK bool) (*TableMap, refle
 	elem := ptrv.Elem()
 	elem = reflect.Indirect(elem)
 	etype := reflect.TypeOf(elem.Interface())
+	//fmt.Printf("etype: %s, checkpk: %v\n", etype, checkPK)
 	t, err := m.TableFor(etype, checkPK)
 	if err != nil {
 		return nil, reflect.Value{}, err
